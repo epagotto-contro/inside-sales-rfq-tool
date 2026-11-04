@@ -1,139 +1,39 @@
-:root {
-  --bg: #f4f7fb;
-  --panel: #ffffff;
-  --ink: #1e293b;
-  --muted: #64748b;
-  --primary: #1d4ed8;
-  --primary-soft: #dbeafe;
-  --success: #10b981;
-  --warning: #f59e0b;
-  --danger: #ef4444;
-  --line: #e2e8f0;
-}
+# Inside Sales RFQ Tool
 
-* {
-  box-sizing: border-box;
-}
+A small web dashboard that organizes Outlook shared-mailbox quote requests into customer, contact, items, category, and urgency fields. It uses Microsoft Graph (not browser scraping) and stores synced requests in a local SQLite database.
 
-body {
-  margin: 0;
-  font-family: Arial, sans-serif;
-  background: var(--bg);
-  color: var(--ink);
-}
+## Run locally
 
-.container {
-  max-width: 1200px;
-  margin: 32px auto;
-  padding: 0 20px;
-}
+Requires Python 3.11 or newer.
 
-.topbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 20px 24px;
-  margin-bottom: 24px;
-}
+```bash
+python -m venv .venv
+# macOS/Linux
+source .venv/bin/activate
+# Windows PowerShell: .venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+cp .env.example .env
+uvicorn app.main:app --reload
+```
 
-.topbar h1 {
-  margin: 0;
-  font-size: 1.9rem;
-}
+Open <http://127.0.0.1:8000>. Without Microsoft Graph credentials the dashboard displays sample data. The **Sync mailbox** button will work after configuration below. The JSON endpoint is `/api/quotes`.
 
-.topbar p {
-  margin: 8px 0 0;
-  color: var(--muted);
-}
+## Microsoft 365 / Graph setup
 
-.badge {
-  background: var(--primary-soft);
-  color: var(--primary);
-  border-radius: 999px;
-  padding: 8px 12px;
-  font-weight: 700;
-}
+1. Register an application in Microsoft Entra ID.
+2. Add the Microsoft Graph **Application** permission `Mail.Read` and obtain tenant admin consent. For a production environment, restrict the app to only the intended shared mailbox using your organization's supported Exchange application access controls.
+3. Create a client secret and set `TENANT_ID`, `CLIENT_ID`, and `CLIENT_SECRET` in `.env`.
+4. Set `SHARED_MAILBOX` to the shared mailbox email address.
+5. Restart the app and click **Sync mailbox**.
 
-.summary {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 16px;
-  margin-bottom: 24px;
-}
+Protect the client secret. Do not commit `.env` or use this development server as a production deployment. The Graph app-only permission can grant broad mailbox access if not appropriately restricted; have your Microsoft 365 administrator review the permission and access policy.
 
-.card {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 18px 20px;
-}
+## What the app does
 
-.card span {
-  display: block;
-  color: var(--muted);
-  margin-bottom: 6px;
-}
+- Fetches up to 50 recent messages from the configured mailbox on manual sync.
+- Keeps messages that appear to mention an RFQ, quote, quotation, or pricing.
+- Extracts simple labeled fields and category/urgency hints. Those guesses should be checked against the email before quoting.
+- Stores messages by Graph message ID to avoid adding a duplicate on each sync.
+- Shows a link back to each email when Microsoft Graph provides one.
 
-.card strong {
-  font-size: 2rem;
-}
-
-table {
-  width: 100%;
-  border-collapse: collapse;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  overflow: hidden;
-}
-
-th, td {
-  text-align: left;
-  padding: 14px 16px;
-  border-bottom: 1px solid var(--line);
-  vertical-align: top;
-}
-
-th {
-  background: #f8fafc;
-  font-size: 0.8rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--muted);
-}
-
-.tag {
-  display: inline-block;
-  padding: 6px 10px;
-  border-radius: 999px;
-  font-size: 0.8rem;
-  font-weight: 700;
-}
-
-.tag.srv {
-  background: #dbeafe;
-  color: #1d4ed8;
-}
-
-.tag.control-valves {
-  background: #fef3c7;
-  color: #92400e;
-}
-
-.tag.msa {
-  background: #dcfce7;
-  color: #166534;
-}
-
-.tag.e\+h {
-  background: #f3e8ff;
-  color: #6b21a8;
-}
-
-.tag.unclassified {
-  background: #e2e8f0;
-  color: #334155;
-}
+This is an initial working prototype. Extraction rules are intentionally conservative and may need adapting to the formats used by your customers.

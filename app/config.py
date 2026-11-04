@@ -14,7 +14,10 @@ class Settings:
     client_secret: str = os.getenv("CLIENT_SECRET", "")
     shared_mailbox: str = os.getenv("SHARED_MAILBOX", "")
     graph_scope: str = os.getenv("GRAPH_SCOPE", "https://graph.microsoft.com/.default")
-    app_secret_key: str = os.getenv("APP_SECRET_KEY", "dev-secret")
+
+    @property
+    def graph_configured(self) -> bool:
+        return all((self.tenant_id, self.client_id, self.client_secret, self.shared_mailbox))
 
 
 @lru_cache(maxsize=1)

@@ -1,81 +1,88 @@
-from typing import Any, Dict, List
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Inside Sales RFQ Tool</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <main class="page-shell">
+      <header class="topbar">
+        <div class="brand-mark" aria-hidden="true">RFQ</div>
+        <div class="heading">
+          <p class="eyebrow">INSIDE SALES</p>
+          <h1>Quote requests</h1>
+          <p class="subtitle">A shared inbox, organized and ready for action.</p>
+        </div>
+        <div class="header-actions">
+          <span class="mailbox-pill">{% if demo_mode %}Demo data{% elif shared_mailbox %}{{ shared_mailbox }}{% else %}Mailbox{% endif %}</span>
+          <form method="post" action="/sync">
+            <button class="sync-button" type="submit">Sync mailbox <span aria-hidden="true">↻</span></button>
+          </form>
+        </div>
+      </header>
 
-from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse
-from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
+      {% if status %}<div class="notice" role="status">{{ status }}</div>{% endif %}
 
-from app.config import get_settings
-from app.db import get_requests, init_db, save_request
-from app.services.graph_client import fetch_shared_mailbox_messages
-from app.services.rfq_parser import parse_messages
+      <section class="summary" aria-label="Request summary">
+        <article class="summary-card"><span class="summary-label">Open requests</span><strong>{{ requests|length }}</strong><span class="summary-note">in the current view</span></article>
+        <article class="summary-card"><span class="summary-label">Urgent</span><strong>{{ requests|selectattr('urgency','equalto','Urgent')|list|length }}</strong><span class="summary-note">needs fast attention</span></article>
+        <article class="summary-card"><span class="summary-label">Unclassified</span><strong>{{ requests|selectattr('category','equalto','Unclassified')|list|length }}</strong><span class="summary-note">check category manually</span></article>
+      </section>
 
-app = FastAPI(title="Inside Sales RFQ Tool")
-
-app.mount("/static", StaticFiles(directory="app/static"), name="static")
-templates = Jinja2Templates(directory="app/templates")
-
-
-def _demo_data() -> List[Dict[str, Any]]:
-    return [
-        {
-            "customer_name": "Global Energy Systems",
-            "contact_name": "Megan Collins",
-            "items": "Pressure transmitters and valve assemblies",
-            "category": "Control Valves",
-            "urgency": "Urgent",
-            "subject": "RFQ - Control Valve package / urgent",
-            "source": "demo",
-            "received_at": "2026-11-04T12:02:00Z",
-        },
-        {
-            "customer_name": "Precision Foods",
-            "contact_name": "Luis Ortega",
-            "items": "Flow meters, SRV replacement kit",
-            "category": "SRV",
-            "urgency": "High",
-            "subject": "Quote request for service replacement",
-            "source": "demo",
-            "received_at": "2026-11-04T11:15:00Z",
-        },
-    ]
-
-
-@app.on_event("startup")
-def startup_event() -> None:
-    init_db()
-
-
-@app.get("/", response_class=HTMLResponse)
-async def home(request: Request):
-    settings = get_settings()
-    try:
-        messages = await fetch_shared_mailbox_messages()
-        parsed = parse_messages(messages)
-        if not parsed and settings.shared_mailbox:
-            parsed = []
-    except Exception:
-        parsed = []
-
-    if not parsed:
-        parsed = _demo_data()
-
-    # Save parsed entries to the local database for quick inspection.
-    for item in parsed:
-        save_request(item)
-
-    rows = get_requests()
-    return templates.TemplateResponse(
-        "index.html",
-        {
-            "request": request,
-            "requests": rows or parsed,
-            "shared_mailbox": settings.shared_mailbox,
-        },
-    )
-
-
-@app.get("/api/quotes")
-async def get_quotes():
-    rows = get_requests()
-    return rows if rows else _demo_data()
+      <section class="inbox-panel">
+        <div class="panel-heading">
+          <div><h2>RFQ inbox</h2><p>Review extracted details before preparing a quote.</p></div>
+          <label class="search-box"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="Search requests" aria-label="Search requests" /></label>
+        </div>
+        <div class="filters" aria-label="Request filters">
+          <label>Category <select id="category-filter"><option value="">All categories</option><option>SRV</option><option>Control Valves</option><option>MSA</option><option>E+H</option><option>Unclassified</option></select></label>
+          <label>Urgency <select id="urgency-filter"><option value="">All urgency</option><option>Urgent</option><option>High</option><option>Medium</option><option>Low</option><option>Not specified</option></select></label>
+          <span class="review-hint">Extracted fields may need review</span>
+        </div>
+        <div class="table-wrap">
+          <table id="rfq-table">
+            <thead><tr><th>Customer / email</th><th>Contact</th><th>Items to be quoted</th><th>Category</th><th>Urgency</th><th>Received</th></tr></thead>
+            <tbody>
+              {% for rfq in requests %}
+              <tr data-category="{{ rfq.category }}" data-urgency="{{ rfq.urgency }}">
+                <td class="customer-cell">
+                  <strong>{{ rfq.customer_name }}</strong>
+                  {% if rfq.web_link %}<a href="{{ rfq.web_link }}" target="_blank" rel="noopener noreferrer">{{ rfq.subject }} <span aria-hidden="true">↗</span></a>{% else %}<span class="subject">{{ rfq.subject }}</span>{% endif %}
+                </td>
+                <td>{{ rfq.contact_name }}</td>
+                <td class="items-cell">{{ rfq.items }}</td>
+                <td><span class="category-tag {{ rfq.category|lower|replace(' ', '-')|replace('+', 'plus') }}">{{ rfq.category }}</span></td>
+                <td><span class="urgency {{ rfq.urgency|lower|replace(' ', '-') }}"><i></i>{{ rfq.urgency }}</span></td>
+                <td class="received">{{ rfq.received_at[:10] if rfq.received_at else '—' }}</td>
+              </tr>
+              {% else %}
+              <tr><td class="empty-state" colspan="6">No RFQs found. Sync the mailbox to check for new quote requests.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <footer class="table-footer"><span>Showing {{ requests|length }} request(s)</span><span>Review uncertain or missing fields against the original email.</span></footer>
+      </section>
+      <p class="page-footnote">This tool organizes messages; extracted details are suggestions and should be verified before quoting.</p>
+    </main>
+    <script>
+      const search = document.getElementById('search');
+      const category = document.getElementById('category-filter');
+      const urgency = document.getElementById('urgency-filter');
+      const rows = [...document.querySelectorAll('#rfq-table tbody tr[data-category]')];
+      function filterRows() {
+        const term = search.value.toLowerCase();
+        rows.forEach(row => {
+          const matchesText = row.innerText.toLowerCase().includes(term);
+          const matchesCategory = !category.value || row.dataset.category === category.value;
+          const matchesUrgency = !urgency.value || row.dataset.urgency === urgency.value;
+          row.hidden = !(matchesText && matchesCategory && matchesUrgency);
+        });
+      }
+      [search, category, urgency].forEach(control => control.addEventListener('input', filterRows));
+      [category, urgency].forEach(control => control.addEventListener('change', filterRows));
+    </script>
+  </body>
+</html>

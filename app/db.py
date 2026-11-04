@@ -1,69 +1,84 @@
+from __future__ import annotations
+
 import os
 import sqlite3
-from typing import Any, Dict, List
+from pathlib import Path
+from typing import Any
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "rfq.db")
+DB_PATH = Path(os.getenv("RFQ_DB_PATH", Path(__file__).resolve().parent / "rfq.db"))
 
 
 def get_connection() -> sqlite3.Connection:
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+    connection = sqlite3.connect(DB_PATH)
+    connection.row_factory = sqlite3.Row
+    return connection
 
 
 def init_db() -> None:
-    conn = get_connection()
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS rfq_requests (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            customer_name TEXT,
-            contact_name TEXT,
-            items TEXT,
-            category TEXT,
-            urgency TEXT,
-            subject TEXT,
-            source TEXT,
-            received_at TEXT
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with get_connection() as connection:
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS rfq_requests (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                message_id TEXT UNIQUE,
+                customer_name TEXT NOT NULL,
+                contact_name TEXT NOT NULL,
+                items TEXT NOT NULL,
+                category TEXT NOT NULL,
+                urgency TEXT NOT NULL,
+                subject TEXT NOT NULL,
+                web_link TEXT,
+                received_at TEXT NOT NULL
+            )
+            """
         )
-        """
-    )
-    conn.commit()
-    conn.close()
+        # Allow the app to start when using a database created by the first scaffold.
+        columns = {row["name"] for row in connection.execute("PRAGMA table_info(rfq_requests)")}
+        if "message_id" not in columns:
+            connection.execute("ALTER TABLE rfq_requests ADD COLUMN message_id TEXT")
+        if "web_link" not in columns:
+            connection.execute("ALTER TABLE rfq_requests ADD COLUMN web_link TEXT")
+        connection.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_rfq_message_id ON rfq_requests(message_id)"
+        )
 
 
-def save_request(record: Dict[str, Any]) -> None:
-    conn = get_connection()
-    conn.execute(
-        """
-        INSERT INTO rfq_requests (
-            customer_name, contact_name, items, category, urgency, subject, source, received_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        (
-            record.get("customer_name"),
-            record.get("contact_name"),
-            record.get("items"),
-            record.get("category"),
-            record.get("urgency"),
-            record.get("subject"),
-            record.get("source"),
-            record.get("received_at"),
-        ),
-    )
-    conn.commit()
-    conn.close()
+def save_request(record: dict[str, Any]) -> None:
+    with get_connection() as connection:
+        connection.execute(
+            """
+            INSERT INTO rfq_requests (
+                message_id, customer_name, contact_name, items, category, urgency,
+                subject, web_link, received_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(message_id) DO UPDATE SET
+                customer_name = excluded.customer_name,
+                contact_name = excluded.contact_name,
+                items = excluded.items,
+                category = excluded.category,
+                urgency = excluded.urgency,
+                subject = excluded.subject,
+                web_link = excluded.web_link,
+                received_at = excluded.received_at
+            """,
+            (
+                record.get("message_id"),
+                record.get("customer_name", "Unknown"),
+                record.get("contact_name", "Unknown"),
+                record.get("items", "Not specified"),
+                record.get("category", "Unclassified"),
+                record.get("urgency", "Not specified"),
+                record.get("subject", "No subject"),
+                record.get("web_link"),
+                record.get("received_at", ""),
+            ),
+        )
 
 
-def get_requests() -> List[Dict[str, Any]]:
-    conn = get_connection()
-    rows = conn.execute("SELECT * FROM rfq_requests ORDER BY id DESC").fetchall()
-    conn.close()
+def get_requests() -> list[dict[str, Any]]:
+    with get_connection() as connection:
+        rows = connection.execute(
+            "SELECT * FROM rfq_requests ORDER BY received_at DESC, id DESC"
+        ).fetchall()
     return [dict(row) for row in rows]
-
-
-def clear_requests() -> None:
-    conn = get_connection()
-    conn.execute("DELETE FROM rfq_requests")
-    conn.commit()
-    conn.close()
