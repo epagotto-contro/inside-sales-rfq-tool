@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from typing import Any, Dict, List
 
 from fastapi import FastAPI, Request
@@ -62,19 +60,22 @@ async def home(request: Request):
     if not parsed:
         parsed = _demo_data()
 
+    # Save parsed entries to the local database for quick inspection.
     for item in parsed:
         save_request(item)
 
-    request_data = get_requests()
+    rows = get_requests()
     return templates.TemplateResponse(
         "index.html",
-        {"request": request, "requests": request_data or parsed, "shared_mailbox": settings.shared_mailbox},
+        {
+            "request": request,
+            "requests": rows or parsed,
+            "shared_mailbox": settings.shared_mailbox,
+        },
     )
 
 
 @app.get("/api/quotes")
 async def get_quotes():
     rows = get_requests()
-    if not rows:
-        return _demo_data()
-    return rows
+    return rows if rows else _demo_data()

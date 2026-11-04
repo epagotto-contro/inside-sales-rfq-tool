@@ -1,82 +1,139 @@
-# Inside Sales RFQ Tool
+:root {
+  --bg: #f4f7fb;
+  --panel: #ffffff;
+  --ink: #1e293b;
+  --muted: #64748b;
+  --primary: #1d4ed8;
+  --primary-soft: #dbeafe;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+  --line: #e2e8f0;
+}
 
-A web app for reading a shared Outlook mailbox, identifying RFQ emails, and listing them in a structured dashboard by:
+* {
+  box-sizing: border-box;
+}
 
-- Customer Name
-- Contact Name
-- Items to be quoted
-- Category (SRV, Control Valves, MSA, E+H)
-- Urgency of RFQ
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+}
 
-## Overview
+.container {
+  max-width: 1200px;
+  margin: 32px auto;
+  padding: 0 20px;
+}
 
-This project is a starter implementation for a Microsoft 365-based shared mailbox workflow.
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 20px 24px;
+  margin-bottom: 24px;
+}
 
-It does the following:
+.topbar h1 {
+  margin: 0;
+  font-size: 1.9rem;
+}
 
-1. Connects to Microsoft Graph using OAuth.
-2. Reads messages from the configured shared mailbox.
-3. Parses the email text to detect quote-request details.
-4. Stores and displays the results in a web dashboard.
+.topbar p {
+  margin: 8px 0 0;
+  color: var(--muted);
+}
 
-## Tech stack
+.badge {
+  background: var(--primary-soft);
+  color: var(--primary);
+  border-radius: 999px;
+  padding: 8px 12px;
+  font-weight: 700;
+}
 
-- Python 3.11+
-- FastAPI
-- Microsoft Graph API
-- SQLite (for local persistence)
-- Jinja2 templates
-- Bootstrap CSS
+.summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
 
-## Requirements
+.card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 18px 20px;
+}
 
-- A Microsoft 365 tenant
-- An app registration in Azure AD / Entra ID
-- Shared mailbox access granted to the app
-- A user or service account able to consent to the required Graph scopes
+.card span {
+  display: block;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
 
-## Environment variables
+.card strong {
+  font-size: 2rem;
+}
 
-Create a `.env` file based on `.env.example`:
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+}
 
-```bash
-cp .env.example .env
-```
+th, td {
+  text-align: left;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
 
-Example values:
+th {
+  background: #f8fafc;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
 
-```env
-TENANT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-CLIENT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-CLIENT_SECRET=your-client-secret
-SHARED_MAILBOX=rfq@contoso.com
-GRAPH_SCOPE=https://graph.microsoft.com/.default
-APP_SECRET_KEY=change-this-secret
-```
+.tag {
+  display: inline-block;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
 
-## Local setup
+.tag.srv {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
 
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload
-```
+.tag.control-valves {
+  background: #fef3c7;
+  color: #92400e;
+}
 
-Then open:
+.tag.msa {
+  background: #dcfce7;
+  color: #166534;
+}
 
-- http://localhost:8000
+.tag.e\+h {
+  background: #f3e8ff;
+  color: #6b21a8;
+}
 
-## Notes
-
-- The app starts in a safe "demo mode" if Graph is not configured, so the dashboard can still run without live mailbox access.
-- A real deployment should use proper secrets management and a production web server.
-- You will likely need to grant delegate or application permission depending on whether you use user-based OAuth or app-only access.
-
-## Optional next steps
-
-- Add authentication for internal users
-- Add a queue inbox filter by category or urgency
-- Add email threading / deduplication
-- Add CSV export
-- Add webhook-based polling for new shared mailbox messages
+.tag.unclassified {
+  background: #e2e8f0;
+  color: #334155;
+}

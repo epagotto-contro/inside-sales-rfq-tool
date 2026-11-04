@@ -22,7 +22,7 @@ def normalize_category(raw: str) -> Optional[str]:
         return "E+H"
     if cleaned.startswith("CONTROL VALVE"):
         return "Control Valves"
-    return CATEGORY_MAP.get(cleaned, None)
+    return CATEGORY_MAP.get(cleaned)
 
 
 def detect_category(subject: str, body: str) -> Optional[str]:
@@ -37,8 +37,9 @@ def detect_category(subject: str, body: str) -> Optional[str]:
         r"\bEH\b",
     ]
     for pattern in patterns:
-        if re.search(pattern, text):
-            return normalize_category(re.search(pattern, text).group(0))
+        match = re.search(pattern, text)
+        if match:
+            return normalize_category(match.group(0))
     return None
 
 
@@ -56,7 +57,6 @@ def extract_customer_name(subject: str, body: str) -> Optional[str]:
     text = f"{subject}\n{body or ''}"
     patterns = [
         r"customer\s*(?:name)?\s*[:\-]\s*(.+)",
-        r"customer\s*[:\-]\s*(.+)",
         r"company\s*(?:name)?\s*[:\-]\s*(.+)",
     ]
     return extract_from_patterns(text, patterns)
@@ -92,9 +92,7 @@ def extract_urgency(subject: str, body: str) -> Optional[str]:
     text = f"{subject}\n{body or ''}".lower()
     if "urgent" in text or "asap" in text:
         return "Urgent"
-    if "today" in text or "tomorrow" in text:
-        return "High"
-    if "within 2 days" in text or "2 days" in text or "48h" in text:
+    if "today" in text or "tomorrow" in text or "within 2 days" in text or "48h" in text:
         return "High"
     if "this week" in text or "1 week" in text or "deadline" in text:
         return "Medium"
@@ -107,19 +105,26 @@ def parse_rfq_email(subject: str, body: str) -> Dict[str, Any]:
     cleaned_body = (body or "").replace("\r", "")
     normalized_subject = (subject or "").strip()
 
-    customer_name = extract_customer_name(normalized_subject, cleaned_body)
-    contact_name = extract_contact_name(normalized_subject, cleaned_body)
-    items = extract_items(normalized_subject, cleaned_body)
-    category = detect_category(normalized_subject, cleaned_body)
-    urgency = extract_urgency(normalized_subject, cleaned_body)
-
-    return {
-        "customer_name": customer_name or "Unknown",
-        "contact_name": contact_name or "Unknown",
-        "items": items or "Not specified",
-        "category": category or "Unclassified",
-        "urgency": urgency,
+    record = {
+        "customer_name": extract_customer_name(normalized_subject, cleaned_body) or "Unknown",
+        "contact_name": extract_contact_name(normalized_subject, cleaned_body) or "Unknown",
+        "items": extract_items(normalized_subject, cleaned_body) or "Not specified",
+        "category": detect_category(normalized_subject, cleaned_body) or "Unclassified",
+        "urgency": extract_urgency(normalized_subject, cleaned_body),
         "subject": normalized_subject or "No subject",
         "source": "outlook-shared-mailbox",
         "received_at": datetime.utcnow().isoformat(),
     }
+    return record
+
+
+def parse_messages(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    parsed: List[Dict[str, Any]] = []
+    for message in messages:
+        subject = message.get("subject") or "No subject"
+        body = ""
+        raw_body = message.get("body")
+        if isinstance(raw_body, dict):
+            body = raw_body.get("content", "")
+        parsed.append(parse_rfq_email(subject, body))
+    return parsed
