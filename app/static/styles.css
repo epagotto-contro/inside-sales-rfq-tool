@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Inside Sales RFQ Tool</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="container">
+      <header class="topbar">
+        <div>
+          <h1>Inside Sales RFQ Tool</h1>
+          <p>Shared Outlook mailbox quote pipeline</p>
+        </div>
+        <div class="badge">
+          {% if shared_mailbox %}
+            {{ shared_mailbox }}
+          {% else %}
+            Demo mode
+          {% endif %}
+        </div>
+      </header>
+
+      <section class="summary">
+        <div class="card">
+          <span>Total</span>
+          <strong>{{ requests|length }}</strong>
+        </div>
+        <div class="card">
+          <span>Urgent</span>
+          <strong>{{ requests|selectattr('urgency','equalto','Urgent')|list|length }}</strong>
+        </div>
+        <div class="card">
+          <span>SRV</span>
+          <strong>{{ requests|selectattr('category','equalto','SRV')|list|length }}</strong>
+        </div>
+        <div class="card">
+          <span>Control Valves</span>
+          <strong>{{ requests|selectattr('category','equalto','Control Valves')|list|length }}</strong>
+        </div>
+      </section>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Customer Name</th>
+            <th>Contact Name</th>
+            <th>Items to be quoted</th>
+            <th>Category</th>
+            <th>Urgency</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for rfq in requests %}
+          <tr>
+            <td>{{ rfq.customer_name }}</td>
+            <td>{{ rfq.contact_name }}</td>
+            <td>{{ rfq.items }}</td>
+            <td>
+              <span class="tag {{ rfq.category | replace(' ', '-') | lower }}">{{ rfq.category }}</span>
+            </td>
+            <td>{{ rfq.urgency }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </body>
+</html>

@@ -1,0 +1,80 @@
+from __future__ import annotations
+
+from typing import Any, Dict, List
+
+from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+
+from app.config import get_settings
+from app.db import get_requests, init_db, save_request
+from app.services.graph_client import fetch_shared_mailbox_messages
+from app.services.rfq_parser import parse_messages
+
+app = FastAPI(title="Inside Sales RFQ Tool")
+
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
+templates = Jinja2Templates(directory="app/templates")
+
+
+def _demo_data() -> List[Dict[str, Any]]:
+    return [
+        {
+            "customer_name": "Global Energy Systems",
+            "contact_name": "Megan Collins",
+            "items": "Pressure transmitters and valve assemblies",
+            "category": "Control Valves",
+            "urgency": "Urgent",
+            "subject": "RFQ - Control Valve package / urgent",
+            "source": "demo",
+            "received_at": "2026-11-04T12:02:00Z",
+        },
+        {
+            "customer_name": "Precision Foods",
+            "contact_name": "Luis Ortega",
+            "items": "Flow meters, SRV replacement kit",
+            "category": "SRV",
+            "urgency": "High",
+            "subject": "Quote request for service replacement",
+            "source": "demo",
+            "received_at": "2026-11-04T11:15:00Z",
+        },
+    ]
+
+
+@app.on_event("startup")
+def startup_event() -> None:
+    init_db()
+
+
+@app.get("/", response_class=HTMLResponse)
+async def home(request: Request):
+    settings = get_settings()
+    try:
+        messages = await fetch_shared_mailbox_messages()
+        parsed = parse_messages(messages)
+        if not parsed and settings.shared_mailbox:
+            parsed = []
+    except Exception:
+        parsed = []
+
+    if not parsed:
+        parsed = _demo_data()
+
+    for item in parsed:
+        save_request(item)
+
+    request_data = get_requests()
+    return templates.TemplateResponse(
+        "index.html",
+        {"request": request, "requests": request_data or parsed, "shared_mailbox": settings.shared_mailbox},
+    )
+
+
+@app.get("/api/quotes")
+async def get_quotes():
+    rows = get_requests()
+    if not rows:
+        return _demo_data()
+    return rows
